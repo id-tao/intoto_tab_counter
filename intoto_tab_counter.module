@@ -1,0 +1,109 @@
+<?php
+
+/**
+ * @file
+ * Module to add counter to the tab title.
+ */
+
+/**
+ * Implements hook_menu_local_tasks_alter().
+ *
+ * Add counter to the tab title.
+ */
+function intoto_tab_counter_menu_local_tasks_alter(&$data, $router_item, $root_path) {
+ if (!empty($data['tabs'])) {
+   $tabs = &$data['tabs'];
+   foreach ($tabs as &$tab) {
+     if (!empty($tab['output'])) {
+       foreach($tab['output'] as &$link) {
+         $link['#theme'] = 'intoto_tab_counter_menu_local_task';
+       }
+     }
+   }
+ }
+}
+
+/**
+ * Implements hook_theme().
+ *
+ * Declared theme function to building tabs with counter.
+ */
+function intoto_tab_counter_theme() {
+  return array(
+    'intoto_tab_counter_menu_local_task' => array(
+      'render element' => 'element',
+    ),
+  );
+}
+
+/**
+ * Override theme_menu_local_task().
+ */
+function theme_intoto_tab_counter_menu_local_task($variables) {
+  $counter = NULL;
+  $link = $variables['element']['#link'];
+  $tab_link['counter'] = NULL;
+  $tab_link['path'] = $link['href'];
+
+  // If the link does not contain HTML already, check_plain() it now.
+  // After we set 'html'=TRUE the link will not be sanitized by l().
+  $tab_link['text'] = check_plain($link['title']);
+  $tab_link['localized_options']['html'] = TRUE;
+
+  if (!empty($variables['element']['#active'])) {
+    // Add text to indicate active tab for non-visual users.
+    $active = '<span class="element-invisible">' . t('(active tab)') . '</span>';
+    $tab_link['text'] = t('!local-task-title!active', array('!local-task-title' => $link['title'], '!active' => $active));
+  }
+  if ($link['page_callback'] == 'views_page') {
+    $tab_link['counter'] = intoto_tab_counter_views_render($link['path']);
+  }
+  else {
+    $tab_link = module_invoke_all('tab_count_items', $tab_link);
+  }
+
+  // Render HTML content of the tab counter.
+  if (!empty($tab_link['counter'])) {
+    $counter = array(
+      '#type' => 'html_tag',
+      '#prefix' => ' ',
+      '#tag' => 'span',
+      '#value' => '(' . $tab_link['counter'] . ')',
+      '#attributes' => array(
+        'class' => array('counter'),
+      ),
+    );
+    $counter = drupal_render($counter);
+  }
+
+  return '<li' . (!empty($variables['element']['#active']) ? ' class="active"' : '') . '>' . l($tab_link['text'] . $counter, $tab_link['path'], $tab_link['localized_options']) . "</li>\n";
+}
+
+/**
+ * Callback to provide the counter of views tabs.
+ *
+ * @param string $path
+ *    Path of views tab.
+ *
+ * @return int
+ *    Number of items in the view.
+ */
+function intoto_tab_counter_views_render($path) {
+  $router_item = menu_get_item($path);
+  $view_name = !empty($router_item['page_arguments'][0]) ? $router_item['page_arguments'][0] : NULL;
+  $view_display = !empty($router_item['page_arguments'][1]) ? $router_item['page_arguments'][1] : NULL;
+  // Return NULL if no view for the path.
+  if (empty($view_name) || empty($view_display)) {
+    return NULL;
+  }
+  $view = views_get_view($view_name);
+  $view->set_display($view_display);
+  $view->pre_execute();
+  $view->execute();
+
+  // Return NULL if view has no items.
+  if (empty($view->total_rows)) {
+    return NULL;
+  }
+  return $view->total_rows;
+}

@@ -1,0 +1,8 @@
+name = "Tab counter"
+description = "Provide counter of items into the tab title."
+
+core = 7.x
+package = custom
+
+version = "7.39"
+project = "drupal"
